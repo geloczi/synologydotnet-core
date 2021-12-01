@@ -16,6 +16,7 @@
 		<PackageTags>synology;dsm;synologydotnet;synologydotnet-core</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Description>Base library to develop .NET clients for Synology DSM.</Description>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<DebugType>none</DebugType>
