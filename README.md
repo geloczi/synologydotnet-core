@@ -6,12 +6,20 @@
 * Supports **HTTP** and **HTTPS**
 * SSL certificate validation can be disabled (only for SynoClient, does not affect the AppDomain)
 
-## NuGet package
+## NuGet packages
 
-[NuGet package availabe here](https://www.nuget.org/packages/SynologyDotNet.Core/)
+
+### [SynologyDotNet.Core](https://www.nuget.org/packages/SynologyDotNet.Core/)
+This is the base library, the core. All the specific clients are built on top of this.
 ```
 Install-Package SynologyDotNet.Core
 ```
+
+### [SynologyDotNet.AudioStation](https://www.nuget.org/packages/SynologyDotNet.AudioStation/)
+```
+Install-Package SynologyDotNet.AudioStation
+```
+
 
 ## Usage examples
 
