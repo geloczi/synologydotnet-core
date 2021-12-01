@@ -28,7 +28,7 @@ var audioStation = new AudioStationClient();
 var client = new SynoClient(new Uri("https://MySynolgyNAS:5001/"), audioStation);
 
 // Login
-await _synoClient.LoginAsync("username", "password");
+await client.LoginAsync("username", "password");
 
 // Get 100 artists from the music library.
 var response = await audioStation.ListArtistsAsync(100, 0);
