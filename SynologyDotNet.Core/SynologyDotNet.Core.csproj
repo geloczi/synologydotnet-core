@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
+		<Configurations>Debug;Release;Local</Configurations>
 	</PropertyGroup>
 
 	<!-- General -->
@@ -8,15 +9,9 @@
 		<Product>SynologyDotNet.Core</Product>
 		<Version>0.3.1</Version>
 		<Description>Base library to develop .NET clients for Synology DSM.</Description>
-		<RepositoryUrl>https://github.com/geloczigeri/</RepositoryUrl>
+		<RepositoryUrl>https://github.com/geloczigeri/synologydotnet-core</RepositoryUrl>
 		<Authors>Gergő Gelóczi</Authors>
 		<Copyright>Copyright © Gergő Gelóczi 2021</Copyright>
-	</PropertyGroup>
-
-	<!-- Release mode -->
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<DebugType>none</DebugType>
-		<DebugSymbols>false</DebugSymbols>
 	</PropertyGroup>
 
 	<!-- NuGet package -->
@@ -25,10 +20,11 @@
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<PackageTags>synology;dsm;synologydotnet;synologydotnet-core</PackageTags>
 		<PackageProjectUrl>https://github.com/geloczigeri/synologydotnet-core</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/geloczigeri/synologydotnet-core</RepositoryUrl>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	</PropertyGroup>
+	
+	<!-- ReadMe -->
 	<ItemGroup>
 		<None Include="..\README.md">
 			<Pack>True</Pack>
@@ -41,6 +37,23 @@
 			<PackagePath>\</PackagePath>
 		</None>
 	</ItemGroup>
+
+	<!-- Release mode -->
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<DebugType>none</DebugType>
+		<DebugSymbols>false</DebugSymbols>
+	</PropertyGroup>
+
+	<!-- Local configuration uses project references in the connector projects -->
+	<Choose>
+		<When Condition=" '$(Configuration)'=='Local' ">
+			<PropertyGroup>
+				<DefineConstants>DEBUG;TRACE</DefineConstants>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+		</Otherwise>
+	</Choose>
 
 	<ItemGroup>
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
