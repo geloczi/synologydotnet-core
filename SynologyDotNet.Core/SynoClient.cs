@@ -18,26 +18,23 @@ namespace SynologyDotNet
     /// <seealso cref="System.IDisposable" />
     public class SynoClient : IDisposable
     {
-        #region Events
-        public delegate void ErrorEvent(SynoClient sender, Exception ex);
-        #endregion
-
         #region Fields
+
         /// <summary>
         /// A session name must be provided to connect. By default, the connector will use the "DSM" name to cover all permissions.
         /// </summary>
         private const string SynoTokenHeader = "X-SYNO-TOKEN";
         private object _apiInfosLock = new object();
-        protected bool _disposed = false;
-        private readonly HttpClient _client;
+
         #endregion
 
         #region Apis
-        protected const string SYNO_Auth = "SYNO.API.Auth";
-        protected const string SYNO_Info = "SYNO.API.Info";
-        protected const string SYNO_Core_Desktop_Initdata = "SYNO.Core.Desktop.Initdata";
-        protected const string SYNO_Core_Desktop_SessionData = "SYNO.Core.Desktop.SessionData";
-        protected const string SYNO_FileStation_Info = "SYNO.FileStation.Info";
+
+        private const string SYNO_Auth = "SYNO.API.Auth";
+        private const string SYNO_Info = "SYNO.API.Info";
+        private const string SYNO_Core_Desktop_Initdata = "SYNO.Core.Desktop.Initdata";
+        private const string SYNO_Core_Desktop_SessionData = "SYNO.Core.Desktop.SessionData";
+        private const string SYNO_FileStation_Info = "SYNO.FileStation.Info";
 
         private static readonly HashSet<string> _implementedApiNames = new HashSet<string>(new[]
         {
@@ -47,16 +44,10 @@ namespace SynologyDotNet
             SYNO_Core_Desktop_SessionData,
             SYNO_FileStation_Info
         });
+
         #endregion
 
         #region Properties
-        /// <summary>
-        /// Gets the underlying HTTP client.
-        /// </summary>
-        /// <value>
-        /// The HTTP client.
-        /// </value>
-        public HttpClient HttpClient => _client;
 
         private readonly Dictionary<string, ApiInfo> _apiInfos = new Dictionary<string, ApiInfo>();
         /// <summary>
@@ -77,12 +68,45 @@ namespace SynologyDotNet
         }
 
         /// <summary>
+        /// Gets a value indicating whether this instance is disposed.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is disposed; otherwise, <c>false</c>.
+        /// </value>
+        public bool IsDisposed { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether this instance is conneted.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is conneted; otherwise, <c>false</c>.
+        /// </value>
+        public bool IsConneted => _apiInfos.Count > 0;
+
+        /// <summary>
         /// Gets the user session.
         /// </summary>
         /// <value>
         /// The session.
         /// </value>
         public SynoSession Session { get; private set; }
+
+        private readonly HttpClient _httpClient;
+        /// <summary>
+        /// Gets the underlying HttpClient.
+        /// </summary>
+        /// <value>
+        /// The HTTP client.
+        /// </value>
+        public HttpClient HttpClient => _httpClient;
+
+        private readonly List<StationConnectorBase> _connectors = new List<StationConnectorBase>();
+        /// <summary>
+        /// Gets the connectors added to this client. 
+        /// These connectors are attached to this SynoClient, so they send requests through this instance.
+        /// </summary>
+        public StationConnectorBase[] Connectors => _connectors.ToArray();
+
         #endregion
 
         #region Constructor
@@ -121,28 +145,61 @@ namespace SynologyDotNet
         /// </summary>
         /// <param name="server">The URI of the Synology server. Make sure it also contains the correct port number (By default it is 5000/5001 for HTTP/HTTPS)</param>
         /// <param name="bypassSslCertificateValidation">if set to <c>true</c> [bypass SSL certificate validation].</param>
-        /// <param name="connectors"></param>
+        /// <param name="connectors">Adds the specified connectors to this client, so they will send requests with this client.</param>
         public SynoClient(Uri server, bool bypassSslCertificateValidation, params StationConnectorBase[] connectors)
         {
-            _client = HttpClientHelper.CreateHttpClient(server, System.Security.Authentication.SslProtocols.Tls12, bypassSslCertificateValidation);
-            UpdateApiNamesFromConnectors(connectors);
-        }
-
-        private void UpdateApiNamesFromConnectors(IEnumerable<ISynoClientConnectable> connectors)
-        {
-            if (connectors is null)
-                return;
-            foreach (var connector in connectors)
+            _httpClient = HttpClientHelper.CreateHttpClient(server, System.Security.Authentication.SslProtocols.Tls12, bypassSslCertificateValidation);
+            if (connectors?.Length > 0 == true)
             {
-                connector.SetClient(this);
-                foreach (var apiName in connector.GetApiNames())
-                    _implementedApiNames.Add(apiName);
+                _connectors.AddRange(connectors);
+                UpdateApiNamesFromConnectors(connectors);
             }
         }
 
         #endregion
 
         #region Public Methods
+
+        /// <summary>
+        /// Adds the specified connector to this client.
+        /// </summary>
+        /// <param name="connector"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        public SynoClient Add(StationConnectorBase connector)
+        {
+            if (connector is null)
+                throw new ArgumentNullException(nameof(connector));
+            if (IsConneted)
+                throw new InvalidOperationException("This client has been connected already. You can add connectors synchronously before calling login.");
+            if (_connectors.Contains(connector))
+                throw new ArgumentException("This connector has been added already.", nameof(connector));
+
+            UpdateApiNamesFromConnector(connector);
+            _connectors.Add(connector);
+            return this;
+        }
+
+        /// <summary>
+        /// Adds the specified connector to this client. 
+        /// This method can be called even after this SynoClient is connected, in this case the API specification for this connector will be downloaded.
+        /// </summary>
+        /// <param name="connector"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        public async Task AddAsync(StationConnectorBase connector)
+        {
+            if (connector is null)
+                throw new ArgumentNullException(nameof(connector));
+            if (_connectors.Contains(connector))
+                throw new ArgumentException("This connector has been added already.", nameof(connector));
+
+            if (IsConneted)
+                await LoadApiInfos(((ISynoClientConnectable)connector).GetApiNames());
+            else
+                UpdateApiNamesFromConnector(connector);
+            _connectors.Add(connector);
+        }
 
         /// <summary>
         /// Loads specification for the specified API names into this client.
@@ -160,9 +217,9 @@ namespace SynologyDotNet
         }
 
         /// <summary>
-        /// Queries the API infos.
+        /// Gets the supported API specifications from the Synology DSM.
         /// </summary>
-        /// <param name="filter">The filter.</param>
+        /// <param name="filter">Filter the list by API names. Get API specifications only for these API names.</param>
         /// <returns></returns>
         /// <exception cref="System.Exception">Cannot get Synology API information.</exception>
         public async Task<ApiInfo[]> QueryApiInfos(string[] filter = null)
@@ -194,7 +251,7 @@ namespace SynologyDotNet
             req["enable_syno_token"] = "yes";
             req.SetExplicitQueryStringParam("enable_syno_token", "yes"); // This is necessary to get a valid synotoken, this has to be present in the query string as well (even if it's a POST!)
 
-            var response = await _client.SendAsync(req.ToPostRequest());
+            var response = await _httpClient.SendAsync(req.ToPostRequest());
             ThrowIfNotSuccessfulHttpResponse(response);
             var json = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
             var loginResult = JsonConvert.DeserializeObject<LoginResult>(json);
@@ -235,27 +292,6 @@ namespace SynologyDotNet
                 if (!loginTest.Success)
                     throw new SynoLoginException(loginTest.Error.Code);
             }
-        }
-
-        /// <summary>
-        /// You can re-use the previous session, so you can skip the login.
-        /// There is a possibility that your session already expired! In this case, you have to call the LoginAsync method and authenticate the user.
-        /// </summary>
-        /// <param name="session"></param>
-        private void LoadSession(SynoSession session)
-        {
-            if (session is null)
-                throw new ArgumentNullException(nameof(session));
-            if (string.IsNullOrWhiteSpace(session.Id))
-                throw new ArgumentException($"{nameof(session)}.{nameof(session.Id)}");
-            if (string.IsNullOrWhiteSpace(session.Token) || session.Token.All(c => c == '-'))
-                throw new ArgumentException($"{nameof(session)}.{nameof(session.Token)}");
-            if (!(session.Cookie?.Length > 0))
-                throw new ArgumentException($"{nameof(session)}.{nameof(session.Cookie)}");
-
-            HttpClientHelper.SetDefaultRequestHeaderValue(_client, SynoTokenHeader, session.Token);
-            HttpClientHelper.SetDefaultRequestHeaderValues(_client, "Cookie", session.Cookie);
-            Session = session;
         }
 
         /// <summary>
@@ -344,7 +380,7 @@ namespace SynologyDotNet
         public async Task<ByteArrayData> QueryImageAsync(string apiName, string method, bool returnNullIfNotFound, params (string, object)[] parameters)
         {
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).SetParams(parameters);
-            var response = await _client.SendAsync(req.ToPostRequest());
+            var response = await _httpClient.SendAsync(req.ToPostRequest());
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound && returnNullIfNotFound)
                 return null;
             if (response.IsSuccessStatusCode && response.Content.Headers.ContentType.MediaType.StartsWith("image", StringComparison.OrdinalIgnoreCase))
@@ -359,18 +395,29 @@ namespace SynologyDotNet
             throw new SynoHttpException(response);
         }
 
+        /// <summary>
+        /// Sends a query and returns the response as a raw string.
+        /// </summary>
+        /// <param name="req">The req.</param>
+        /// <returns></returns>
         public async Task<string> QueryStringAsync(RequestBuilder req)
         {
-            var response = await _client.SendAsync(req.ToPostRequest());
+            var response = await _httpClient.SendAsync(req.ToPostRequest());
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync();
             var text = Encoding.UTF8.GetString(bytes);
             return text;
         }
 
+        /// <summary>
+        /// Sends a query and deserializes the JSON response to the specified type.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="req">The req.</param>
+        /// <returns></returns>
         public async Task<T> QueryObjectAsync<T>(RequestBuilder req)
         {
-            var response = await _client.SendAsync(req.ToPostRequest());
+            var response = await _httpClient.SendAsync(req.ToPostRequest());
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync();
             var text = Encoding.UTF8.GetString(bytes);
@@ -378,12 +425,15 @@ namespace SynologyDotNet
             return obj;
         }
 
+        /// <summary>
+        /// Dispose this instance.
+        /// </summary>
         public void Dispose()
         {
-            if (_disposed)
+            if (IsDisposed)
                 return;
-            _disposed = true;
-            _client.Dispose();
+            IsDisposed = true;
+            _httpClient.Dispose();
         }
 
         private static void ThrowIfNotSuccessfulHttpResponse(HttpResponseMessage msg)
@@ -395,19 +445,57 @@ namespace SynologyDotNet
         #endregion
 
         #region Private Methods
+
         private async Task ConnectAsync()
         {
-            if (_apiInfos.Count > 0)
+            if (IsConneted)
                 throw new InvalidOperationException("Already connected.");
             await LoadApiInfos(_implementedApiNames.ToArray());
+        }
+
+        /// <summary>
+        /// You can re-use the previous session, so you can skip the login.
+        /// There is a possibility that your session already expired! In this case, you have to call the LoginAsync method and authenticate the user.
+        /// </summary>
+        /// <param name="session"></param>
+        private void LoadSession(SynoSession session)
+        {
+            if (session is null)
+                throw new ArgumentNullException(nameof(session));
+            if (string.IsNullOrWhiteSpace(session.Id))
+                throw new ArgumentException($"{nameof(session)}.{nameof(session.Id)}");
+            if (string.IsNullOrWhiteSpace(session.Token) || session.Token.All(c => c == '-'))
+                throw new ArgumentException($"{nameof(session)}.{nameof(session.Token)}");
+            if (!(session.Cookie?.Length > 0))
+                throw new ArgumentException($"{nameof(session)}.{nameof(session.Cookie)}");
+
+            HttpClientHelper.SetDefaultRequestHeaderValue(_httpClient, SynoTokenHeader, session.Token);
+            HttpClientHelper.SetDefaultRequestHeaderValues(_httpClient, "Cookie", session.Cookie);
+            Session = session;
         }
 
         private void ClearSession()
         {
             Session = null;
-            HttpClientHelper.SetDefaultRequestHeaderValue(_client, SynoTokenHeader, null);
-            HttpClientHelper.SetDefaultRequestHeaderValues(_client, "Cookie", null);
+            HttpClientHelper.SetDefaultRequestHeaderValue(_httpClient, SynoTokenHeader, null);
+            HttpClientHelper.SetDefaultRequestHeaderValues(_httpClient, "Cookie", null);
         }
+
+        private void UpdateApiNamesFromConnectors(IEnumerable<ISynoClientConnectable> connectors)
+        {
+            if (connectors is null)
+                return;
+            foreach (var connector in connectors)
+                UpdateApiNamesFromConnector(connector);
+        }
+
+        private void UpdateApiNamesFromConnector(ISynoClientConnectable connector)
+        {
+            connector.SetClient(this);
+            foreach (var apiName in connector.GetApiNames())
+                _implementedApiNames.Add(apiName);
+        }
+
         #endregion
     }
 }

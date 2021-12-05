@@ -40,7 +40,6 @@ namespace SynologyDotNet.Core.IntegrationTest
         {
             var client2 = new SynoClient(new Uri(CoreConfig.Server), true);
             await client2.LoginWithPreviousSessionAsync(Session);
-
         }
 
         [TestMethod]
@@ -58,7 +57,7 @@ namespace SynologyDotNet.Core.IntegrationTest
                 });
                 Assert.Fail("Exception must be thrown on invalid session.");
             }
-            catch (Exception ex)
+            catch
             {
             }
         }

@@ -3,12 +3,19 @@ using System.Threading.Tasks;
 
 namespace SynologyDotNet
 {
-
     /// <summary>
-    /// The base class to implement Synology API connectors.
+    /// The base class to implement a Synology API connector.
+    /// You max derive from this class and start implementing your API connector.
     /// </summary>
     public abstract class StationConnectorBase : IDisposable, ISynoClientConnectable
     {
+        #region Properties
+        /// <summary>
+        /// Gets a value indicating whether this instance is disposed.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is disposed; otherwise, <c>false</c>.
+        /// </value>
         protected bool IsDisposed { get; private set; }
 
         private SynoClient _client;
@@ -27,12 +34,7 @@ namespace SynologyDotNet
             }
         }
 
-        /// <summary>
-        /// Creates the connector re-using an existing client.
-        /// </summary>
-        public StationConnectorBase()
-        {
-        }
+        #endregion Properties
 
         /// <summary>
         /// Initializes this connector instance, downloads API metadata from the server.
@@ -60,6 +62,9 @@ namespace SynologyDotNet
         /// <returns></returns>
         protected abstract string[] GetImplementedApiNames();
 
+        /// <summary>
+        /// Override this method to run custom dispose code.
+        /// </summary>
         protected virtual void OnDispose()
         {
         }

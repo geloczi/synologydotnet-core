@@ -4,6 +4,9 @@ using Newtonsoft.Json;
 
 namespace SynologyDotNet.Core.Helpers.Testing
 {
+    /// <summary>
+    /// TestBase
+    /// </summary>
     public abstract class TestBase
     {
         /// <summary>
@@ -31,6 +34,15 @@ namespace SynologyDotNet.Core.Helpers.Testing
             },
             new TestClientConfig());
 
+        /// <summary>
+        /// Loads the json file.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="fileName">Name of the file.</param>
+        /// <param name="validateAction">The validate action.</param>
+        /// <param name="saveTemplate">Example configuration values to save on failure.</param>
+        /// <returns></returns>
+        /// <exception cref="System.Exception"></exception>
         public static T LoadJsonFile<T>(string fileName, Action<T> validateAction, T saveTemplate = null)
             where T : class
         {

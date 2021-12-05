@@ -1,40 +1,48 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
-		<Version>0.3.0</Version>
-		<AssemblyVersion>0.3.0.0</AssemblyVersion>
 	</PropertyGroup>
+
+	<!-- General -->
 	<PropertyGroup>
-		<NoWarn>1701;1702;1591</NoWarn>
-	</PropertyGroup>
-	<PropertyGroup>
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<Copyright>Copyright © Gergő Gelóczi 2021</Copyright>
-		<PackageProjectUrl>https://github.com/geloczigeri/synologydotnet-core</PackageProjectUrl>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<RepositoryUrl>https://github.com/geloczigeri/synologydotnet-core</RepositoryUrl>
-		<PackageTags>synology;dsm;synologydotnet;synologydotnet-core</PackageTags>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Product>SynologyDotNet.Core</Product>
+		<Version>0.3.1</Version>
 		<Description>Base library to develop .NET clients for Synology DSM.</Description>
+		<RepositoryUrl>https://github.com/geloczigeri/</RepositoryUrl>
+		<Authors>Gergő Gelóczi</Authors>
+		<Copyright>Copyright © Gergő Gelóczi 2021</Copyright>
 	</PropertyGroup>
+
+	<!-- Release mode -->
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<DebugType>none</DebugType>
 		<DebugSymbols>false</DebugSymbols>
 	</PropertyGroup>
+
+	<!-- NuGet package -->
+	<PropertyGroup>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<PackageTags>synology;dsm;synologydotnet;synologydotnet-core</PackageTags>
+		<PackageProjectUrl>https://github.com/geloczigeri/synologydotnet-core</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/geloczigeri/synologydotnet-core</RepositoryUrl>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	</PropertyGroup>
 	<ItemGroup>
-	  <None Include="..\README.md">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
+		<None Include="..\README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
 	</ItemGroup>
+	<ItemGroup>
+		<None Update="README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-	</ItemGroup>
-	<ItemGroup>
-	  <None Update="README.md">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
 	</ItemGroup>
 </Project>
