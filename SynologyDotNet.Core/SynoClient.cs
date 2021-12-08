@@ -170,10 +170,10 @@ namespace SynologyDotNet
         {
             if (connector is null)
                 throw new ArgumentNullException(nameof(connector));
-            if (IsConneted)
-                throw new InvalidOperationException("This client has been connected already. You can add connectors synchronously before calling login.");
             if (_connectors.Contains(connector))
                 throw new ArgumentException("This connector has been added already.", nameof(connector));
+            if (IsConneted)
+                throw new InvalidOperationException($"This client has been connected already. You can add connectors synchronously only before calling login. After login has been called, please use {nameof(AddAsync)}");
 
             UpdateApiNamesFromConnector(connector);
             _connectors.Add(connector);
@@ -181,7 +181,7 @@ namespace SynologyDotNet
         }
 
         /// <summary>
-        /// Adds the specified connector to this client. 
+        /// Adds the specified connector to this client and loads the API specifications used by this client.
         /// This method can be called even after this SynoClient is connected, in this case the API specification for this connector will be downloaded.
         /// </summary>
         /// <param name="connector"></param>
