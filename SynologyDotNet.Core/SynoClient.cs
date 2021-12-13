@@ -219,10 +219,17 @@ namespace SynologyDotNet
         /// <summary>
         /// Gets the supported API specifications from the Synology DSM.
         /// </summary>
-        /// <param name="filter">Filter the list by API names. Get API specifications only for these API names.</param>
-        /// <returns></returns>
+        /// <returns>List of API specifications.</returns>
         /// <exception cref="System.Exception">Cannot get Synology API information.</exception>
-        public async Task<ApiInfo[]> QueryApiInfos(string[] filter = null)
+        public async Task<ApiInfo[]> QueryApiInfos() => await QueryApiInfos(null);
+
+        /// <summary>
+        /// Gets the supported API specifications from the Synology DSM filtered down to the specified APIs.
+        /// </summary>
+        /// <param name="filter">Filter the list by API names. Get API specifications only for these API names.</param>
+        /// <returns>List of API specifications.</returns>
+        /// <exception cref="System.Exception">Cannot get Synology API information.</exception>
+        public async Task<ApiInfo[]> QueryApiInfos(string[] filter)
         {
             var req = new RequestBuilder("webapi/query.cgi", SYNO_Info, 1, "query").SetParam("query", filter?.Length > 0 ? string.Join(",", filter) : "all");
             var json = await QueryStringAsync(req);
@@ -288,7 +295,7 @@ namespace SynologyDotNet
             LoadSession(previousSession);
             if (sendTestRequest)
             {
-                var loginTest = await QueryAsync<ApiResponse>(SYNO_FileStation_Info, "get");
+                var loginTest = await QueryObjectAsync<ApiResponse>(SYNO_FileStation_Info, "get");
                 if (!loginTest.Success)
                     throw new SynoLoginException(loginTest.Error.Code);
             }
@@ -323,10 +330,10 @@ namespace SynologyDotNet
         }
 
         /// <summary>
-        /// Gets the API information.
+        /// Gets the API information for the specified API.
         /// </summary>
         /// <param name="apiName">Name of the API.</param>
-        /// <returns></returns>
+        /// <returns>API info.</returns>
         /// <exception cref="System.NotSupportedException">The '{apiName}' API is not supported by your server.</exception>
         public ApiInfo GetApiInfo(string apiName)
         {
@@ -361,7 +368,7 @@ namespace SynologyDotNet
         /// <param name="method">The method.</param>
         /// <param name="parameters">The parameters.</param>
         /// <returns></returns>
-        public async Task<T> QueryAsync<T>(string apiName, string method, params (string, object)[] parameters)
+        public async Task<T> QueryObjectAsync<T>(string apiName, string method, params (string, object)[] parameters)
         {
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).SetParams(parameters);
             var result = await QueryObjectAsync<T>(req);
@@ -373,26 +380,13 @@ namespace SynologyDotNet
         /// </summary>
         /// <param name="apiName">Name of the API.</param>
         /// <param name="method">The method.</param>
-        /// <param name="returnNullIfNotFound">if set to <c>true</c> [return null if not found].</param>
         /// <param name="parameters">The parameters.</param>
         /// <returns></returns>
         /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
-        public async Task<ByteArrayData> QueryImageAsync(string apiName, string method, bool returnNullIfNotFound, params (string, object)[] parameters)
+        public async Task<ByteArrayData> QueryByteArrayAsync(string apiName, string method, params (string, object)[] parameters)
         {
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).SetParams(parameters);
-            var response = await _httpClient.SendAsync(req.ToPostRequest());
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound && returnNullIfNotFound)
-                return null;
-            if (response.IsSuccessStatusCode && response.Content.Headers.ContentType.MediaType.StartsWith("image", StringComparison.OrdinalIgnoreCase))
-            {
-                var bytes = await response.Content.ReadAsByteArrayAsync();
-                return new ByteArrayData()
-                {
-                    Data = bytes,
-                    Type = response.Content.Headers.ContentType.MediaType
-                };
-            }
-            throw new SynoHttpException(response);
+            return await QueryByteArrayAsync(req);
         }
 
         /// <summary>
@@ -423,6 +417,27 @@ namespace SynologyDotNet
             var text = Encoding.UTF8.GetString(bytes);
             var obj = JsonConvert.DeserializeObject<T>(text);
             return obj;
+        }
+
+        /// <summary>
+        /// Queries the byte array asynchronous.
+        /// </summary>
+        /// <param name="req">The req.</param>
+        /// <returns></returns>
+        /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
+        public async Task<ByteArrayData> QueryByteArrayAsync(RequestBuilder req)
+        {
+            var response = await _httpClient.SendAsync(req.ToPostRequest());
+            if (response.IsSuccessStatusCode)
+            {
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                return new ByteArrayData()
+                {
+                    Data = bytes,
+                    Type = response.Content.Headers.ContentType.MediaType
+                };
+            }
+            throw new SynoHttpException(response);
         }
 
         /// <summary>

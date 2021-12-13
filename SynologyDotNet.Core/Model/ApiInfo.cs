@@ -65,6 +65,6 @@
         /// <returns>
         /// A <see cref="System.String" /> that represents this instance.
         /// </returns>
-        public override string ToString() => Name ?? base.ToString();
+        public override string ToString() => $"{nameof(Name)}={Name}, {nameof(MaxVersion)}={MaxVersion}, {nameof(Path)}={Path}, {nameof(RequestFormat)}={RequestFormat}";
     }
 }
