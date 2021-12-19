@@ -234,7 +234,13 @@ namespace SynologyDotNet
             return result.Data.Select(x => new ApiInfo(x.Key, x.Value)).ToArray();
         }
 
-
+        /// <summary>
+        /// Login with username and password.
+        /// </summary>
+        /// <param name="username">Login account name.</param>
+        /// <param name="password">Login account password.</param>
+        /// <param name="session">Optional. Session name for DSM applications.</param>
+        /// <returns>Returns a user session. You can persist this information and re-use it next time. Instead of the login method, invoke RestoreSession so you can re-use your last session.</returns>
         public async Task<SynoSession> LoginAsync(string username, string password, string session = "")
             => await LoginAsync(username, password, CancellationToken.None, session);
 
@@ -282,6 +288,13 @@ namespace SynologyDotNet
             throw new SynoLoginException(0);
         }
 
+        /// <summary>
+        /// Re-uses previous session.
+        /// </summary>
+        /// <param name="previousSession">Session</param>
+        /// <param name="sendTestRequest">Set to true in order to test the credentials with a test request. If you make a request anyway after this call, it is better to set it to False.</param>
+        /// <returns></returns>
+        /// <exception cref="SynoLoginException">Thrown if sendTestRequest was True and the login test failed.</exception>
         public async Task LoginWithPreviousSessionAsync(SynoSession previousSession, bool sendTestRequest = true)
             => await LoginWithPreviousSessionAsync(previousSession, CancellationToken.None, sendTestRequest);
 
