@@ -216,6 +216,8 @@ On the other hand, you have "convenience" methods with a simplified argument lis
 
 `Task<ByteArrayData> QueryByteArrayAsync(RequestBuilder req)`  
 
+`Task QueryStreamAsync(RequestBuilder req, Action<StreamResult> readStreamAction)`  
+
 ## Notes
 
 This is one of my home projects. My goal is to develop my own library and build applications on top of them. 
