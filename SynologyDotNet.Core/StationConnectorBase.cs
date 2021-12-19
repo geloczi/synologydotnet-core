@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading.Tasks;
 
 namespace SynologyDotNet
 {
@@ -10,6 +9,7 @@ namespace SynologyDotNet
     public abstract class StationConnectorBase : IDisposable, ISynoClientConnectable
     {
         #region Properties
+
         /// <summary>
         /// Gets a value indicating whether this instance is disposed.
         /// </summary>
@@ -36,14 +36,7 @@ namespace SynologyDotNet
 
         #endregion Properties
 
-        /// <summary>
-        /// Initializes this connector instance, downloads API metadata from the server.
-        /// </summary>
-        public async Task ConnectAsync(SynoClient client)
-        {
-            Client = client;
-            await Client.LoadApiInfos(GetImplementedApiNames());
-        }
+        #region Public Methods
 
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
@@ -55,6 +48,10 @@ namespace SynologyDotNet
             OnDispose();
             IsDisposed = true;
         }
+
+        #endregion Public Methods
+
+        #region Protected Methods
 
         /// <summary>
         /// You must override this method and return the API names used by your component.
@@ -69,6 +66,10 @@ namespace SynologyDotNet
         {
         }
 
+        #endregion Protected Methods
+
+        #region ISynoClientConnectable
+
         void ISynoClientConnectable.SetClient(SynoClient client)
         {
             Client = client;
@@ -78,5 +79,7 @@ namespace SynologyDotNet
         {
             return GetImplementedApiNames();
         }
+
+        #endregion ISynoClientConnectable
     }
 }

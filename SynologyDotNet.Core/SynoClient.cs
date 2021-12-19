@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using SynologyDotNet.Core.Exceptions;
 using SynologyDotNet.Core.Helpers;
 using SynologyDotNet.Core.Model;
 using SynologyDotNet.Core.Responses;
-using SynologyDotNet.Core.Exceptions;
 
 namespace SynologyDotNet
 {
@@ -195,25 +196,10 @@ namespace SynologyDotNet
                 throw new ArgumentException("This connector has been added already.", nameof(connector));
 
             if (IsConneted)
-                await LoadApiInfos(((ISynoClientConnectable)connector).GetApiNames());
+                await LoadApiInfos(CancellationToken.None, ((ISynoClientConnectable)connector).GetApiNames());
             else
                 UpdateApiNamesFromConnector(connector);
             _connectors.Add(connector);
-        }
-
-        /// <summary>
-        /// Loads specification for the specified API names into this client.
-        /// </summary>
-        /// <param name="filter"></param>
-        /// <returns></returns>
-        public async Task LoadApiInfos(string[] filter = null)
-        {
-            var apis = await QueryApiInfos(filter);
-            lock (_apiInfosLock)
-            {
-                foreach (var api in apis)
-                    _apiInfos[api.Name] = api;
-            }
         }
 
         /// <summary>
@@ -221,34 +207,48 @@ namespace SynologyDotNet
         /// </summary>
         /// <returns>List of API specifications.</returns>
         /// <exception cref="System.Exception">Cannot get Synology API information.</exception>
-        public async Task<ApiInfo[]> QueryApiInfos() => await QueryApiInfos(null);
+        public async Task<ApiInfo[]> QueryApiInfos() => await QueryApiInfos(CancellationToken.None, null);
+
+        /// <summary>
+        /// Gets the supported API specifications from the Synology DSM.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>List of API specifications.</returns>
+        /// <exception cref="System.Exception">Cannot get Synology API information.</exception>
+        public async Task<ApiInfo[]> QueryApiInfos(CancellationToken cancellationToken) => await QueryApiInfos(cancellationToken, null);
 
         /// <summary>
         /// Gets the supported API specifications from the Synology DSM filtered down to the specified APIs.
         /// </summary>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <param name="filter">Filter the list by API names. Get API specifications only for these API names.</param>
         /// <returns>List of API specifications.</returns>
         /// <exception cref="System.Exception">Cannot get Synology API information.</exception>
-        public async Task<ApiInfo[]> QueryApiInfos(string[] filter)
+        public async Task<ApiInfo[]> QueryApiInfos(CancellationToken cancellationToken, string[] filter)
         {
             var req = new RequestBuilder("webapi/query.cgi", SYNO_Info, 1, "query").SetParam("query", filter?.Length > 0 ? string.Join(",", filter) : "all");
-            var json = await QueryStringAsync(req);
+            var json = await QueryStringAsync(req, cancellationToken);
             var result = JsonConvert.DeserializeObject<SynoApiInfo>(json);
             if (!result.Success || !(result.Data?.Count > 0))
                 throw new Exception("Cannot get Synology API information.");
             return result.Data.Select(x => new ApiInfo(x.Key, x.Value)).ToArray();
         }
 
+
+        public async Task<SynoSession> LoginAsync(string username, string password, string session = "")
+            => await LoginAsync(username, password, CancellationToken.None, session);
+
         /// <summary>
         /// Login with username and password.
         /// </summary>
         /// <param name="username">Login account name.</param>
         /// <param name="password">Login account password.</param>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <param name="session">Optional. Session name for DSM applications.</param>
         /// <returns>Returns a user session. You can persist this information and re-use it next time. Instead of the login method, invoke RestoreSession so you can re-use your last session.</returns>
-        public async Task<SynoSession> LoginAsync(string username, string password, string session = "")
+        public async Task<SynoSession> LoginAsync(string username, string password, CancellationToken cancellationToken, string session = "")
         {
-            await ConnectAsync();
+            await ConnectAsync(cancellationToken);
 
             var req = new RequestBuilder(GetApiInfo(SYNO_Auth)).Method("login");
             req["account"] = username;
@@ -258,7 +258,7 @@ namespace SynologyDotNet
             req["enable_syno_token"] = "yes";
             req.SetExplicitQueryStringParam("enable_syno_token", "yes"); // This is necessary to get a valid synotoken, this has to be present in the query string as well (even if it's a POST!)
 
-            var response = await _httpClient.SendAsync(req.ToPostRequest());
+            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken);
             ThrowIfNotSuccessfulHttpResponse(response);
             var json = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
             var loginResult = JsonConvert.DeserializeObject<LoginResult>(json);
@@ -282,16 +282,20 @@ namespace SynologyDotNet
             throw new SynoLoginException(0);
         }
 
+        public async Task LoginWithPreviousSessionAsync(SynoSession previousSession, bool sendTestRequest = true)
+            => await LoginWithPreviousSessionAsync(previousSession, CancellationToken.None, sendTestRequest);
+
         /// <summary>
         /// Re-uses previous session.
         /// </summary>
         /// <param name="previousSession">Session</param>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <param name="sendTestRequest">Set to true in order to test the credentials with a test request. If you make a request anyway after this call, it is better to set it to False.</param>
         /// <returns></returns>
         /// <exception cref="SynoLoginException">Thrown if sendTestRequest was True and the login test failed.</exception>
-        public async Task LoginWithPreviousSessionAsync(SynoSession previousSession, bool sendTestRequest = true)
+        public async Task LoginWithPreviousSessionAsync(SynoSession previousSession, CancellationToken cancellationToken, bool sendTestRequest = true)
         {
-            await ConnectAsync();
+            await ConnectAsync(cancellationToken);
             LoadSession(previousSession);
             if (sendTestRequest)
             {
@@ -354,9 +358,24 @@ namespace SynologyDotNet
         /// <returns></returns>
         public async Task<T> QueryListAsync<T>(string apiName, string method, int limit, int offset, params (string, object)[] parameters)
             where T : IApiListResponse
+            => await QueryListAsync<T>(apiName, method, limit, offset, CancellationToken.None, parameters);
+
+        /// <summary>
+        /// Queries a list of entities.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="apiName">Name of the API.</param>
+        /// <param name="method">The method.</param>
+        /// <param name="limit">The limit.</param>
+        /// <param name="offset">The offset.</param>
+        /// <param name="cancellationToken"></param>
+        /// <param name="parameters">The parameters.</param>
+        /// <returns></returns>
+        public async Task<T> QueryListAsync<T>(string apiName, string method, int limit, int offset, CancellationToken cancellationToken, params (string, object)[] parameters)
+            where T : IApiListResponse
         {
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).Limit(limit).Offset(offset).SetParams(parameters);
-            var result = await QueryObjectAsync<T>(req);
+            var result = await QueryObjectAsync<T>(req, cancellationToken);
             return result;
         }
 
@@ -369,9 +388,21 @@ namespace SynologyDotNet
         /// <param name="parameters">The parameters.</param>
         /// <returns></returns>
         public async Task<T> QueryObjectAsync<T>(string apiName, string method, params (string, object)[] parameters)
+            => await QueryObjectAsync<T>(apiName, method, CancellationToken.None, parameters);
+
+        /// <summary>
+        /// Queries an entity from the specified endpoint.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="apiName">Name of the API.</param>
+        /// <param name="method">The method.</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name="parameters">The parameters.</param>
+        /// <returns></returns>
+        public async Task<T> QueryObjectAsync<T>(string apiName, string method, CancellationToken cancellationToken, params (string, object)[] parameters)
         {
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).SetParams(parameters);
-            var result = await QueryObjectAsync<T>(req);
+            var result = await QueryObjectAsync<T>(req, cancellationToken);
             return result;
         }
 
@@ -384,21 +415,42 @@ namespace SynologyDotNet
         /// <returns></returns>
         /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
         public async Task<ByteArrayData> QueryByteArrayAsync(string apiName, string method, params (string, object)[] parameters)
+            => await QueryByteArrayAsync(apiName, method, CancellationToken.None, parameters);
+
+        /// <summary>
+        /// Queries image data from the specified endpoint.
+        /// </summary>
+        /// <param name="apiName">Name of the API.</param>
+        /// <param name="method">The method.</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name="parameters">The parameters.</param>
+        /// <returns></returns>
+        /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
+        public async Task<ByteArrayData> QueryByteArrayAsync(string apiName, string method, CancellationToken cancellationToken, params (string, object)[] parameters)
         {
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).SetParams(parameters);
-            return await QueryByteArrayAsync(req);
+            return await QueryByteArrayAsync(req, cancellationToken);
         }
 
         /// <summary>
         /// Sends a query and returns the response as a raw string.
         /// </summary>
-        /// <param name="req">The req.</param>
+        /// <param name="req">The request</param>
         /// <returns></returns>
         public async Task<string> QueryStringAsync(RequestBuilder req)
+            => await QueryStringAsync(req, CancellationToken.None);
+
+        /// <summary>
+        /// Sends a query and returns the response as a raw string.
+        /// </summary>
+        /// <param name="req">The request</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns></returns>
+        public async Task<string> QueryStringAsync(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest());
+            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken);
             ThrowIfNotSuccessfulHttpResponse(response);
-            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var bytes = await response.Content.ReadAsByteArrayAsync(); // Do not use ReadAsStringAsync here
             var text = Encoding.UTF8.GetString(bytes);
             return text;
         }
@@ -406,14 +458,24 @@ namespace SynologyDotNet
         /// <summary>
         /// Sends a query and deserializes the JSON response to the specified type.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="req">The req.</param>
+        /// <typeparam name="T">Type of the object expected from the server</typeparam>
+        /// <param name="req">The request</param>
         /// <returns></returns>
         public async Task<T> QueryObjectAsync<T>(RequestBuilder req)
+            => await QueryObjectAsync<T>(req, CancellationToken.None);
+
+        /// <summary>
+        /// Sends a query and deserializes the JSON response to the specified type.
+        /// </summary>
+        /// <typeparam name="T">Type of the object expected from the server</typeparam>
+        /// <param name="req">The request</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns></returns>
+        public async Task<T> QueryObjectAsync<T>(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest());
+            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken);
             ThrowIfNotSuccessfulHttpResponse(response);
-            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var bytes = await response.Content.ReadAsByteArrayAsync(); // Do not use ReadAsStringAsync here
             var text = Encoding.UTF8.GetString(bytes);
             var obj = JsonConvert.DeserializeObject<T>(text);
             return obj;
@@ -422,22 +484,92 @@ namespace SynologyDotNet
         /// <summary>
         /// Queries the byte array asynchronous.
         /// </summary>
-        /// <param name="req">The req.</param>
+        /// <param name="req">The request.</param>
         /// <returns></returns>
         /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
         public async Task<ByteArrayData> QueryByteArrayAsync(RequestBuilder req)
+            => await QueryByteArrayAsync(req, CancellationToken.None);
+
+        /// <summary>
+        /// Queries the byte array asynchronous.
+        /// </summary>
+        /// <param name="req">The request.</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns></returns>
+        /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
+        public async Task<ByteArrayData> QueryByteArrayAsync(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest());
-            if (response.IsSuccessStatusCode)
+            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken);
+            ThrowIfNotSuccessfulHttpResponse(response);
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            return new ByteArrayData()
             {
-                var bytes = await response.Content.ReadAsByteArrayAsync();
-                return new ByteArrayData()
-                {
-                    Data = bytes,
-                    Type = response.Content.Headers.ContentType.MediaType
-                };
+                Data = bytes,
+                Type = response.Content.Headers.ContentType.MediaType
+            };
+        }
+
+        /// <summary>
+        /// Queries a stream from the server.
+        /// </summary>
+        /// <param name="req">The request.</param>
+        /// <param name="readStreamAction">Read stream action method.</param>
+        /// <returns></returns>
+        /// <exception cref="NullReferenceException"></exception>
+        /// <exception cref="OperationCanceledException"></exception>
+        /// <exception cref="NotSupportedException"></exception>
+        public async Task QueryStreamAsync(RequestBuilder req, Action<StreamResult> readStreamAction)
+            => await QueryStreamAsync(req, readStreamAction, CancellationToken.None);
+
+        /// <summary>
+        /// Queries a stream from the server.
+        /// </summary>
+        /// <param name="req">The request.</param>
+        /// <param name="readStreamAction">Read stream action method.</param>
+        /// /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns></returns>
+        /// <exception cref="NullReferenceException"></exception>
+        /// <exception cref="OperationCanceledException"></exception>
+        /// <exception cref="NotSupportedException"></exception>
+        public async Task QueryStreamAsync(RequestBuilder req, Action<StreamResult> readStreamAction, CancellationToken cancellationToken)
+        {
+            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken);
+            ThrowIfNotSuccessfulHttpResponse(response);
+            if (response.Content is null)
+                throw new NullReferenceException("No content.");
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException();
+
+            long contentLength;
+            string contentType;
+
+            // DSM 6 compatibility
+            if (response.Content is StreamContent streamContent)
+            {
+                contentType = streamContent.Headers.ContentType.MediaType;
+                contentLength = streamContent.Headers.ContentLength.Value;
             }
-            throw new SynoHttpException(response);
+            // DSM 7 compatibility
+            else if (response.Content.Headers.TryGetValues("Content-Type", out var contentTypeValues)
+                && contentTypeValues.Any()
+                && response.Content.Headers.TryGetValues("Content-Length", out var contentLengthValues)
+                && contentLengthValues.Any()
+                && long.TryParse(contentLengthValues.First(), out contentLength))
+            {
+                contentType = contentTypeValues.First();
+            }
+            // Not supported
+            else
+            {
+                throw new NotSupportedException(response.Content.GetType().FullName);
+            }
+
+            using (var stream = await response.Content.ReadAsStreamAsync())
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    throw new OperationCanceledException();
+                readStreamAction(new StreamResult(stream, contentType, contentLength, cancellationToken));
+            }
         }
 
         /// <summary>
@@ -461,11 +593,11 @@ namespace SynologyDotNet
 
         #region Private Methods
 
-        private async Task ConnectAsync()
+        private async Task ConnectAsync(CancellationToken cancellationToken)
         {
             if (IsConneted)
                 throw new InvalidOperationException("Already connected.");
-            await LoadApiInfos(_implementedApiNames.ToArray());
+            await LoadApiInfos(cancellationToken, _implementedApiNames.ToArray());
         }
 
         /// <summary>
@@ -509,6 +641,16 @@ namespace SynologyDotNet
             connector.SetClient(this);
             foreach (var apiName in connector.GetApiNames())
                 _implementedApiNames.Add(apiName);
+        }
+
+        private async Task LoadApiInfos(CancellationToken cancellationToken, string[] filter = null)
+        {
+            var apis = await QueryApiInfos(cancellationToken, filter);
+            lock (_apiInfosLock)
+            {
+                foreach (var api in apis)
+                    _apiInfos[api.Name] = api;
+            }
         }
 
         #endregion
