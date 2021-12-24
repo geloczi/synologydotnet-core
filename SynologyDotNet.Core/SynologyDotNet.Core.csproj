@@ -8,7 +8,7 @@
 	<PropertyGroup>
 		<Title>SynologyDotNet.Core</Title>
 		<Product>SynologyDotNet.Core</Product>
-		<Version>0.4.1</Version>
+		<Version>0.4.2</Version>
 		<Description>Base library to develop .NET clients for Synology DSM.</Description>
 		<RepositoryUrl>https://github.com/geloczigeri/synologydotnet-core</RepositoryUrl>
 		<Authors>Gergő Gelóczi</Authors>

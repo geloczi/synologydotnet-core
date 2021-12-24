@@ -546,7 +546,7 @@ namespace SynologyDotNet
         /// <exception cref="NotSupportedException"></exception>
         public async Task QueryStreamAsync(RequestBuilder req, Action<StreamResult> readStreamAction, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken);
+            var response = await _httpClient.SendAsync(req.ToPostRequest(), HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             ThrowIfNotSuccessfulHttpResponse(response);
             if (response.Content is null)
                 throw new NullReferenceException("No content.");
