@@ -222,7 +222,7 @@ namespace SynologyDotNet.Core.Helpers
         /// <returns></returns>
         public RequestBuilder SetFile(Stream file, string filename)
         {
-            if (file == null || file.Length == 0)
+            if (file == null)
                 throw new ArgumentNullException(nameof(file));
             if (string.IsNullOrWhiteSpace(filename))
                 throw new ArgumentNullException(nameof(filename));
