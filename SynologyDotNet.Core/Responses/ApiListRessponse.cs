@@ -8,7 +8,7 @@ namespace SynologyDotNet.Core.Responses
     /// <typeparam name="T"></typeparam>
     /// <seealso cref="SynologyDotNet.Core.Responses.ApiResponse" />
     /// <seealso cref="SynologyDotNet.Core.Responses.IApiListResponse" />
-    public class ApiListRessponse<T> : ApiResponse, IApiListResponse
+    public class ApiListResponse<T> : ApiResponse, IApiListResponse
         where T : ListResponseBase
     {
         ListResponseBase IApiListResponse.Data => Data;

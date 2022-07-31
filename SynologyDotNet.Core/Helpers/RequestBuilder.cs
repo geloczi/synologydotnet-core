@@ -1,8 +1,10 @@
-﻿using System;
+﻿using SynologyDotNet.Core.Model;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
-using SynologyDotNet.Core.Model;
+using System.Threading.Tasks;
 
 namespace SynologyDotNet.Core.Helpers
 {
@@ -26,6 +28,15 @@ namespace SynologyDotNet.Core.Helpers
         /// The parameters in this collection will be always serialized into the query string regardless of the request type
         /// </summary>
         public Dictionary<string, string> ExplicitQueryStringParams { get; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// File to upload with its filename
+        /// </summary>
+        /// <value>
+        /// The file.
+        /// </value>
+        public (Stream, string)? File { get; set; }
+
         #endregion
 
         #region Constructor
@@ -204,6 +215,23 @@ namespace SynologyDotNet.Core.Helpers
         }
 
         /// <summary>
+        /// Sets the file to upload
+        /// </summary>
+        /// <param name="file">The file.</param>
+        /// <param name="filename">The filename.</param>
+        /// <returns></returns>
+        public RequestBuilder SetFile(Stream file, string filename)
+        {
+            if (file == null || file.Length == 0)
+                throw new ArgumentNullException(nameof(file));
+            if (string.IsNullOrWhiteSpace(filename))
+                throw new ArgumentNullException(nameof(filename));
+
+            File = (file, filename);
+            return this;
+        }
+
+        /// <summary>
         /// Explicit query string parameters are always appended to the final URL, regardless the chosen HTTP method.
         /// </summary>
         public RequestBuilder SetExplicitQueryStringParam(string key, object value)
@@ -226,17 +254,45 @@ namespace SynologyDotNet.Core.Helpers
         /// Converts to HTTP POST request.
         /// </summary>
         /// <returns></returns>
-        public HttpRequestMessage ToPostRequest()
+        public async Task<HttpRequestMessage> ToPostRequest()
         {
             // Only ExplicitQueryStringParams are going to the query string
             string url = GetBaseUrl();
             if (ExplicitQueryStringParams.Count > 0)
                 url += "?" + string.Join("&", ExplicitQueryStringParams.Select(x => $"{x.Key}={System.Web.HttpUtility.UrlEncode(x.Value)}"));
             // All the other parameters are serialized into the request body
-            var msg = new HttpRequestMessage(HttpMethod.Post, url)
+            var msg = new HttpRequestMessage(HttpMethod.Post, url);
+            var paramContent = new FormUrlEncodedContent(Params);
+            if (File == null)
             {
-                Content = new FormUrlEncodedContent(Params)
-            };
+                msg.Content = paramContent;
+            }
+            // If a file is attached, create a Multipart
+            else
+            {
+                var multiPart = new MultipartFormDataContent(Guid.NewGuid().ToString());
+                // Add all parameters as separate form data
+                foreach (var param in Params.Where(p => p.Value != null))
+                {
+                    var stringContent = new StringContent(param.Value);
+                    // Content type is automatically set to text/plain, but this makes the API return an error. Set to null
+                    stringContent.Headers.ContentType = null;
+                    multiPart.Add(stringContent, $"\"{param.Key}\"");
+                }
+                // Add the file
+                multiPart.Add(new StreamContent(File.Value.Item1), "\"file\"", $"\"{File.Value.Item2}\"");
+                // Problem with the .NET framework: the boundary is set between quotes (""). The API will return a 101 error because it cannot process this.
+                // Therefore, remove the quotes
+                var boundaryParameter = multiPart.Headers.ContentType.Parameters.Single(p => p.Name == "boundary");
+                boundaryParameter.Value = boundaryParameter.Value.Replace("\"", "");
+
+                // As a result, Multipart does not calculate the size anymore (set to 0), which leaves the final request body empty. Calculate manually
+                var size =  (await multiPart.ReadAsStreamAsync()).Length;
+                multiPart.Headers.ContentLength = size;
+
+                msg.Content = multiPart;
+            }
+            
             return msg;
         }
 
