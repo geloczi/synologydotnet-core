@@ -1,15 +1,16 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using SynologyDotNet.Core.Exceptions;
+using SynologyDotNet.Core.Helpers;
+using SynologyDotNet.Core.Model;
+using SynologyDotNet.Core.Responses;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using SynologyDotNet.Core.Exceptions;
-using SynologyDotNet.Core.Helpers;
-using SynologyDotNet.Core.Model;
-using SynologyDotNet.Core.Responses;
 
 namespace SynologyDotNet
 {
@@ -264,7 +265,7 @@ namespace SynologyDotNet
             req["enable_syno_token"] = "yes";
             req.SetExplicitQueryStringParam("enable_syno_token", "yes"); // This is necessary to get a valid synotoken, this has to be present in the query string as well (even if it's a POST!)
 
-            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var json = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false));
             var loginResult = JsonConvert.DeserializeObject<LoginResult>(json);
@@ -384,12 +385,11 @@ namespace SynologyDotNet
         /// <param name="cancellationToken"></param>
         /// <param name="parameters">The parameters.</param>
         /// <returns></returns>
-        public async Task<T> QueryListAsync<T>(string apiName, string method, int limit, int offset, CancellationToken cancellationToken, params (string, object)[] parameters)
+        public Task<T> QueryListAsync<T>(string apiName, string method, int limit, int offset, CancellationToken cancellationToken, params (string, object)[] parameters)
             where T : IApiListResponse
         {
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).Limit(limit).Offset(offset).SetParams(parameters);
-            var result = await QueryObjectAsync<T>(req, cancellationToken).ConfigureAwait(false);
-            return result;
+            return QueryObjectAsync<T>(req, cancellationToken);
         }
 
         /// <summary>
@@ -402,6 +402,19 @@ namespace SynologyDotNet
         /// <returns></returns>
         public async Task<T> QueryObjectAsync<T>(string apiName, string method, params (string, object)[] parameters)
             => await QueryObjectAsync<T>(apiName, method, CancellationToken.None, parameters).ConfigureAwait(false);
+
+        /// <summary>
+        /// Queries an entity from the specified endpoint with a file attached.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="apiName">Name of the API.</param>
+        /// <param name="method">The method.</param>
+        /// <param name="data">The stream.</param>
+        /// <param name="filename">The filename.</param>
+        /// <param name="parameters">The parameters.</param>
+        /// <returns></returns>
+        public Task<T> QueryObjectAsync<T>(string apiName, string method, Stream data, string filename, params (string, object)[] parameters)
+            => QueryObjectAsync<T>(apiName, method, CancellationToken.None, data, filename, parameters);
 
         /// <summary>
         /// Queries an entity from the specified endpoint.
@@ -417,6 +430,23 @@ namespace SynologyDotNet
             var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).SetParams(parameters);
             var result = await QueryObjectAsync<T>(req, cancellationToken).ConfigureAwait(false);
             return result;
+        }
+
+        /// <summary>
+        /// Queries an entity from the specified endpoint with a file attached
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="apiName">Name of the API.</param>
+        /// <param name="method">The method.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <param name="data">The stream.</param>
+        /// <param name="filename">The filename.</param>
+        /// <param name="parameters">The parameters.</param>
+        /// <returns></returns>
+        public Task<T> QueryObjectAsync<T>(string apiName, string method, CancellationToken cancellationToken, Stream data, string filename, params (string, object)[] parameters)
+        {
+            var req = new RequestBuilder(GetApiInfo(apiName)).Method(method).SetParams(parameters).SetFile(data, filename);
+            return QueryObjectAsync<T>(req, cancellationToken);
         }
 
         /// <summary>
@@ -461,7 +491,7 @@ namespace SynologyDotNet
         /// <returns></returns>
         public async Task<string> QueryStringAsync(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false); // Do not use ReadAsStringAsync here
             var text = Encoding.UTF8.GetString(bytes);
@@ -486,7 +516,7 @@ namespace SynologyDotNet
         /// <returns></returns>
         public async Task<T> QueryObjectAsync<T>(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false); // Do not use ReadAsStringAsync here
             var text = Encoding.UTF8.GetString(bytes);
@@ -512,7 +542,7 @@ namespace SynologyDotNet
         /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
         public async Task<ByteArrayData> QueryByteArrayAsync(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             return new ByteArrayData()
@@ -546,7 +576,7 @@ namespace SynologyDotNet
         /// <exception cref="NotSupportedException"></exception>
         public async Task QueryStreamAsync(RequestBuilder req, Action<StreamResult> readStreamAction, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(req.ToPostRequest(), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequest(), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             if (response.Content is null)
                 throw new NullReferenceException("No content.");
