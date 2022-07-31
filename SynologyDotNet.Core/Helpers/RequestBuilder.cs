@@ -254,7 +254,7 @@ namespace SynologyDotNet.Core.Helpers
         /// Converts to HTTP POST request.
         /// </summary>
         /// <returns></returns>
-        public async Task<HttpRequestMessage> ToPostRequest()
+        public async Task<HttpRequestMessage> ToPostRequestAsync()
         {
             // Only ExplicitQueryStringParams are going to the query string
             string url = GetBaseUrl();

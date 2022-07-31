@@ -15,7 +15,7 @@ namespace SynologyDotNet.Core.Test
         {
             
 
-            var r = new RequestBuilder("AudioStation/album.cgi", "SYNO.AudioStation.Album", 1, "list").ToPostRequest();
+            var r = new RequestBuilder("AudioStation/album.cgi", "SYNO.AudioStation.Album", 1, "list").ToPostRequestAsync().Result;
             Assert.AreEqual("AudioStation/album.cgi", r.RequestUri.OriginalString);
             Assert.AreEqual(HttpMethod.Post, r.Method);
             if (r.Content is FormUrlEncodedContent form)

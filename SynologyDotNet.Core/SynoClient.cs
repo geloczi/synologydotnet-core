@@ -265,7 +265,7 @@ namespace SynologyDotNet
             req["enable_syno_token"] = "yes";
             req.SetExplicitQueryStringParam("enable_syno_token", "yes"); // This is necessary to get a valid synotoken, this has to be present in the query string as well (even if it's a POST!)
 
-            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var json = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false));
             var loginResult = JsonConvert.DeserializeObject<LoginResult>(json);
@@ -491,7 +491,7 @@ namespace SynologyDotNet
         /// <returns></returns>
         public async Task<string> QueryStringAsync(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false); // Do not use ReadAsStringAsync here
             var text = Encoding.UTF8.GetString(bytes);
@@ -516,7 +516,7 @@ namespace SynologyDotNet
         /// <returns></returns>
         public async Task<T> QueryObjectAsync<T>(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false); // Do not use ReadAsStringAsync here
             var text = Encoding.UTF8.GetString(bytes);
@@ -542,7 +542,7 @@ namespace SynologyDotNet
         /// <exception cref="SynologyDotNet.Core.Exceptions.SynoHttpException"></exception>
         public async Task<ByteArrayData> QueryByteArrayAsync(RequestBuilder req, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(await req.ToPostRequest(), cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             return new ByteArrayData()
@@ -576,7 +576,7 @@ namespace SynologyDotNet
         /// <exception cref="NotSupportedException"></exception>
         public async Task QueryStreamAsync(RequestBuilder req, Action<StreamResult> readStreamAction, CancellationToken cancellationToken)
         {
-            var response = await _httpClient.SendAsync(await req.ToPostRequest(), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            var response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             ThrowIfNotSuccessfulHttpResponse(response);
             if (response.Content is null)
                 throw new NullReferenceException("No content.");
