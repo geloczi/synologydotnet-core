@@ -78,12 +78,12 @@ namespace SynologyDotNet
         public bool IsDisposed { get; private set; }
 
         /// <summary>
-        /// Gets a value indicating whether this instance is conneted.
+        /// Gets a value indicating whether this instance is connected.
         /// </summary>
         /// <value>
-        ///   <c>true</c> if this instance is conneted; otherwise, <c>false</c>.
+        ///   <c>true</c> if this instance is connected; otherwise, <c>false</c>.
         /// </value>
-        public bool IsConneted => _apiInfos.Count > 0;
+        public bool IsConnected => _apiInfos.Count > 0;
 
         /// <summary>
         /// Gets the user session.
@@ -174,7 +174,7 @@ namespace SynologyDotNet
                 throw new ArgumentNullException(nameof(connector));
             if (_connectors.Contains(connector))
                 throw new ArgumentException("This connector has been added already.", nameof(connector));
-            if (IsConneted)
+            if (IsConnected)
                 throw new InvalidOperationException($"This client has been connected already. You can add connectors synchronously only before calling login. After login has been called, please use {nameof(AddAsync)}");
 
             UpdateApiNamesFromConnector(connector);
@@ -196,7 +196,7 @@ namespace SynologyDotNet
             if (_connectors.Contains(connector))
                 throw new ArgumentException("This connector has been added already.", nameof(connector));
 
-            if (IsConneted)
+            if (IsConnected)
                 await LoadApiInfos(CancellationToken.None, ((ISynoClientConnectable)connector).GetApiNames()).ConfigureAwait(false);
             else
                 UpdateApiNamesFromConnector(connector);
@@ -240,20 +240,11 @@ namespace SynologyDotNet
         /// </summary>
         /// <param name="username">Login account name.</param>
         /// <param name="password">Login account password.</param>
-        /// <param name="session">Optional. Session name for DSM applications.</param>
-        /// <returns>Returns a user session. You can persist this information and re-use it next time. Instead of the login method, invoke RestoreSession so you can re-use your last session.</returns>
-        public async Task<SynoSession> LoginAsync(string username, string password, string session = "")
-            => await LoginAsync(username, password, CancellationToken.None, session).ConfigureAwait(false);
-
-        /// <summary>
-        /// Login with username and password.
-        /// </summary>
-        /// <param name="username">Login account name.</param>
-        /// <param name="password">Login account password.</param>
         /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name="otpCode">Optional two factor authentication code</param>
         /// <param name="session">Optional. Session name for DSM applications.</param>
         /// <returns>Returns a user session. You can persist this information and re-use it next time. Instead of the login method, invoke RestoreSession so you can re-use your last session.</returns>
-        public async Task<SynoSession> LoginAsync(string username, string password, CancellationToken cancellationToken, string session = "")
+        public async Task<SynoSession> LoginAsync(string username, string password, string otpCode = null, string session = "", CancellationToken cancellationToken = default)
         {
             await ConnectAsync(cancellationToken).ConfigureAwait(false);
 
@@ -263,6 +254,10 @@ namespace SynologyDotNet
             req["session"] = session;
             req["format"] = "cookie";
             req["enable_syno_token"] = "yes";
+            if (otpCode != null)
+            {
+                req["otp_code"] = otpCode;
+            }
             req.SetExplicitQueryStringParam("enable_syno_token", "yes"); // This is necessary to get a valid synotoken, this has to be present in the query string as well (even if it's a POST!)
 
             var response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), cancellationToken).ConfigureAwait(false);
@@ -279,7 +274,7 @@ namespace SynologyDotNet
                         Name = session,
                         Id = loginResult.Data.SID,
                         Token = loginResult.Data.SynoToken,
-                        Cookie = cookies.ToArray()
+                        Cookie = cookies.ToArray(),
                     };
                     LoadSession(result);
                     return result;
@@ -638,7 +633,7 @@ namespace SynologyDotNet
 
         private async Task ConnectAsync(CancellationToken cancellationToken)
         {
-            if (IsConneted)
+            if (IsConnected)
                 throw new InvalidOperationException("Already connected.");
             await LoadApiInfos(cancellationToken, _implementedApiNames.ToArray()).ConfigureAwait(false);
         }

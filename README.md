@@ -4,6 +4,7 @@
 * Target: **.NET Standard 2.0**, so it works with a wide range of .NET versions.
 * This is a small framework to consume **Synology DSM's Web API**
 * Supports **HTTP** and **HTTPS**
+* Supports OTP code for login
 * SSL certificate validation can be disabled (only for SynoClient, does not affect the AppDomain)
 
 ## NuGet packages
@@ -27,7 +28,7 @@ More coming soon as I make progress... But you also have the option to write you
 
 ### Query supported APIs from the Synology NAS
 This C# snippet connects to a Synology NAS and lists all supported APIs.  
-```
+```csharp
 var client = new SynoClient("http://MySynolgyNAS:5000/");
 var apis = await client.QueryApiInfos();
 foreach (var api in apis)
@@ -58,7 +59,7 @@ Name=SYNO.AudioStation.Browse.Playlist, MaxVersion=1, Path=entry.cgi, RequestFor
 In order to consume data, you may also add other NuGet packages like **SynologyDotNet.AudioStation**.
 This example shows how to configure the connection and login with username and password.  
 
-```
+```csharp
 // Create an AudioStationClient
 var audioStation = new AudioStationClient();
 
@@ -79,7 +80,7 @@ foreach(var artist in response.Data.Artists)
 SynoClient supports re-using sessions. This is possible if you didn't call the LogoutAsync 
 function and you saved the session returned from LoginAsync function like this:
 
-```
+```csharp
 if(synoSession is null)
     synoSession = await _synoClient.LoginAsync("username", "password");
 else
@@ -88,11 +89,18 @@ else
 
 The LoginWithPreviousSessionAsync function will perform a test by default to validate the session,
 but this can be disabled optionally if you want to save one request.  
-```
+```csharp
     await _synoClient.LoginWithPreviousSessionAsync(synoSession, false);
 ```
 If you make a request anyway after login to fetch your data, this is the recommended approach.
 
+### Login using an OTP code
+You can pass your OTP code for login 
+
+```csharp
+var client = new SynoClient(new Uri("https://MySynolgyNAS:5001/"), audioStation);
+await client.LoginAsync("username", "password", "123456");
+```
 
 ## How to begin development?
 
@@ -132,7 +140,7 @@ NuGet package to the project
 #### Implement string[] GetImplementedApiNames()
 
 This method must return the list of API names your connector will use like this:  
-```
+```csharp
 protected override string[] GetImplementedApiNames() => new string[]
 {
     "SYNO.AudioStation.Info",
@@ -152,10 +160,10 @@ protected override string[] GetImplementedApiNames() => new string[]
 
 ### Do something, utilize the framework
 I'll stick to my *AudioStationClient* example here to **fetch a list of artists**:  
-```
-public async Task<ApiListRessponse<ArtistList>> ListArtistsAsync(int limit, int offset)
+```csharp
+public async Task<ApiListResponse<ArtistList>> ListArtistsAsync(int limit, int offset)
 {
-    return await Client.QueryListAsync<ApiListRessponse<ArtistList>>(
+    return await Client.QueryListAsync<ApiListResponse<ArtistList>>(
         "SYNO.AudioStation.Artist",  // API name
         "list",                      // API method (controller)
         limit,                       // Pagination: page size
@@ -167,10 +175,10 @@ Quite short, isn't it? The followings are happening here:
 - The framework knows what and where to call by the API name.
 - The HTTP request is constructed under the hood
 - The response JSON is parsed to a an ArtistList
-- Pagination supported by default if you're using `ApiListRessponse<T>`
+- Pagination supported by default if you're using `ApiListResponse<T>`
 
 Here is the **data model** returned by `ListArtistsAsync`: 
-```
+```csharp
 public class ArtistList : ListResponseBase
 {
     [JsonProperty("artists")]
@@ -189,7 +197,7 @@ public class Artist
 ### API parameters, data model?
 
 How do I know the parameters and the data model? Well... I spent some time with **Fiddler** to 
-**reverse engineer** the original AudioStation webapplication **API calls** :)  
+**reverse engineer** the original AudioStation web application **API calls** :)  
 
 
 ## Query methods in SynoClient
