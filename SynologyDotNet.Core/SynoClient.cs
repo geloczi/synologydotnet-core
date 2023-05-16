@@ -295,11 +295,6 @@ namespace SynologyDotNet
             {
                 if (loginResult.Success && response.Headers.TryGetValues("Set-Cookie", out var cookies))
                 {
-                    if (response.RequestMessage.Headers.TryGetValues("Cookie", out var requestCookies))
-                    {
-                        cookies = cookies.Concat(requestCookies);
-                    }
-
                     var result = new SynoSession()
                     {
                         Name = session,
@@ -543,11 +538,6 @@ namespace SynologyDotNet
         public async Task<T> QueryObjectAsync<T>(RequestBuilder req, CancellationToken cancellationToken)
         {
             var response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), cancellationToken).ConfigureAwait(false);
-            if (response.Headers.Location != null)
-            {
-                req.Endpoint = response.Headers.Location.ToString();
-                response = await _httpClient.SendAsync(await req.ToPostRequestAsync(), cancellationToken).ConfigureAwait(false);
-            }
             ThrowIfNotSuccessfulHttpResponse(response);
             var bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false); // Do not use ReadAsStringAsync here
             var text = Encoding.UTF8.GetString(bytes);

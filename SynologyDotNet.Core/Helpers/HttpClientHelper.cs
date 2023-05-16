@@ -86,6 +86,7 @@ namespace SynologyDotNet.Core.Helpers
 
             // Set User agent
             client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; EN; rv:11.0) like Gecko");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Charset", "ISO-8859-1"); //Todo: Is this really necessary?
             return client;
         }
     }
