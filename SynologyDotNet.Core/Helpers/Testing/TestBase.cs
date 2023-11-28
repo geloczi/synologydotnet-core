@@ -46,30 +46,34 @@ namespace SynologyDotNet.Core.Helpers.Testing
         public static T LoadJsonFile<T>(string fileName, Action<T> validateAction, T saveTemplate = null)
             where T : class
         {
-            string path = Path.Combine(TestingFolder, fileName);
+            var file = new FileInfo(Path.GetFullPath(Path.Combine(TestingFolder, fileName)));
             try
             {
-                var obj = JsonConvert.DeserializeObject<T>(File.ReadAllText(path));
+                if (!file.Exists)
+                    throw new FileNotFoundException(fileName);
+                var obj = JsonConvert.DeserializeObject<T>(File.ReadAllText(file.FullName));
                 validateAction(obj);
-                Console.WriteLine($"Loaded {path}");
+                Console.WriteLine($"Loaded {file.FullName}");
                 return obj;
             }
             catch
             {
-                Console.Error.WriteLine($"Failed to load {path}");
+                Console.Error.WriteLine($"Failed to load {file.FullName}");
                 try
                 {
-                    if (!(saveTemplate is null) && !File.Exists(path))
+                    if (!(saveTemplate is null) && !file.Exists)
                     {
                         // Save an example configuration file to the disk
-                        File.WriteAllText(path, JsonConvert.SerializeObject(saveTemplate, Formatting.Indented));
+                        string exampleConfigJson = JsonConvert.SerializeObject(saveTemplate, Formatting.Indented);
+                        Directory.CreateDirectory(file.DirectoryName);
+                        File.WriteAllText(file.FullName, exampleConfigJson);
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.Error.WriteLine(ex.ToString());
                 }
-                var msg = $"Please edit {path}";
+                var msg = $"Please edit {file.FullName}";
                 Console.Error.WriteLine(msg);
                 throw new Exception(msg);
             }
