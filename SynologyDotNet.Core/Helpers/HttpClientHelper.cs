@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Security.Authentication;
 using System.Threading;
@@ -53,27 +54,30 @@ namespace SynologyDotNet.Core.Helpers
         /// <summary>
         /// Creates the HTTP client.
         /// </summary>
-        /// <param name="baseAddress">The base address.</param>
-        /// <param name="sslProtocols">The SSL protocols.</param>
-        /// <param name="bypassSslCertificateValidation"></param>
-        /// <returns></returns>
-        public static HttpClient CreateHttpClient(Uri baseAddress, SslProtocols sslProtocols, bool bypassSslCertificateValidation)
+        public static HttpClient CreateHttpClient(Uri baseAddress, SslProtocols sslProtocols, SynoClientOptions options)
         {
-            HttpClient client;
-            if (bypassSslCertificateValidation)
+            var handler = new HttpClientHandler()
             {
-                var handler = new HttpClientHandler
-                {
-                    UseCookies = false,
-                    SslProtocols = sslProtocols,
-                    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true //Bypass certificate validation for HTTPS connections
-                };
-                client = new HttpClient(handler);
-            }
-            else
+                SslProtocols = sslProtocols,
+            };
+
+            if (options.DisableCertificateValidation)
             {
-                client = new HttpClient();
+                handler.UseCookies = false;
+                /* Bypass certificate validation for HTTPS connections */
+                handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
             }
+            
+            if (options.QuickConnectTunnelMode)
+            {
+                handler.UseCookies = true;
+                /* This cookie must be set when using the quickconnect service as relay */
+                handler.CookieContainer = new CookieContainer();
+                handler.CookieContainer.Add(new Cookie("type", "tunnel", "/", baseAddress.Host));
+            }
+
+            var client = new HttpClient(handler);
+
             client.BaseAddress = baseAddress;
             client.Timeout = Timeout.InfiniteTimeSpan;
 

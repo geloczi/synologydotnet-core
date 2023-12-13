@@ -5,6 +5,7 @@
 * This is a small framework to consume **Synology DSM's Web API**
 * Supports **HTTP** and **HTTPS**
 * Supports OTP code for login
+* Supports [QuickConnect](https://kb.synology.com/en-uk/DSM/help/DSM/AdminCenter/connection_quickconnect?version=7)
 * SSL certificate validation can be disabled (only for SynoClient, does not affect the AppDomain)
 
 ## NuGet packages
@@ -64,7 +65,7 @@ This example shows how to configure the connection and login with username and p
 var audioStation = new AudioStationClient();
 
 // Create the SynoClient which communicates with the server, this can be re-used across all Station Clients.
-var client = new SynoClient(new Uri("https://MySynolgyNAS:5001/"), audioStation);
+var client = await SynoClient.Create(SynoConnectionDetails.ForUri("https://MySynolgyNAS:5001/"), audioStation);
 
 // Login
 await client.LoginAsync("username", "password");
@@ -98,8 +99,15 @@ If you make a request anyway after login to fetch your data, this is the recomme
 You can pass your OTP code for login 
 
 ```csharp
-var client = new SynoClient(new Uri("https://MySynolgyNAS:5001/"), audioStation);
+var client = await SynoClient.Create(SynoConnectionDetails.ForUri("https://MySynolgyNAS:5001/"), audioStation);
 await client.LoginAsync("username", "password", "123456");
+```
+
+### Connect using QuickConnect id
+You can use a QuickConnect id to resolve the actual host
+
+```csharp
+var client = await SynoClient.Create(SynoConnectionDetails.ForQuickConnectId("MyQuickConnectId"), audioStation);
 ```
 
 ## How to begin development?

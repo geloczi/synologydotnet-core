@@ -118,6 +118,7 @@ namespace SynologyDotNet
         /// </summary>
         /// <param name="server">The URI of the Synology server. Make sure it also contains the correct port number (By default it is 5000/5001 for HTTP/HTTPS)</param>
         /// <param name="connectors"></param>
+        [Obsolete("Please use " + nameof(Create) + " method")]
         public SynoClient(Uri server, params StationConnectorBase[] connectors)
             : this(server, false, connectors)
         {
@@ -127,8 +128,9 @@ namespace SynologyDotNet
         /// Initializes a new instance of the <see cref="SynoClient"/> class.
         /// </summary>
         /// <param name="server">The URI of the Synology server. Make sure it also contains the correct port number (By default it is 5000/5001 for HTTP/HTTPS)</param>
+        [Obsolete("Please use " + nameof(Create) + " method")]
         public SynoClient(Uri server)
-            : this(server, false, new StationConnectorBase[0])
+            : this(server, false, Array.Empty<StationConnectorBase>())
         {
         }
 
@@ -137,8 +139,9 @@ namespace SynologyDotNet
         /// </summary>
         /// <param name="server">The URI of the Synology server. Make sure it also contains the correct port number (By default it is 5000/5001 for HTTP/HTTPS)</param>
         /// <param name="bypassSslCertificateValidation">if set to <c>true</c> [bypass SSL certificate validation].</param>
+        [Obsolete("Please use " + nameof(Create) + " method")]
         public SynoClient(Uri server, bool bypassSslCertificateValidation)
-            : this(server, bypassSslCertificateValidation, new StationConnectorBase[0])
+            : this(server, bypassSslCertificateValidation, Array.Empty<StationConnectorBase>())
         {
         }
 
@@ -148,14 +151,37 @@ namespace SynologyDotNet
         /// <param name="server">The URI of the Synology server. Make sure it also contains the correct port number (By default it is 5000/5001 for HTTP/HTTPS)</param>
         /// <param name="bypassSslCertificateValidation">if set to <c>true</c> [bypass SSL certificate validation].</param>
         /// <param name="connectors">Adds the specified connectors to this client, so they will send requests with this client.</param>
+        [Obsolete("Please use " + nameof(Create) + " method")]
         public SynoClient(Uri server, bool bypassSslCertificateValidation, params StationConnectorBase[] connectors)
         {
-            _httpClient = HttpClientHelper.CreateHttpClient(server, System.Security.Authentication.SslProtocols.Tls12, bypassSslCertificateValidation);
+            _httpClient = HttpClientHelper.CreateHttpClient(
+                server,
+                System.Security.Authentication.SslProtocols.Tls12,
+                new SynoClientOptions(false, bypassSslCertificateValidation));
             if (connectors?.Length > 0 == true)
             {
                 _connectors.AddRange(connectors);
                 UpdateApiNamesFromConnectors(connectors);
             }
+        }
+
+        internal SynoClient(Uri server, SynoClientOptions options, params StationConnectorBase[] connectors)
+        {
+            _httpClient = HttpClientHelper.CreateHttpClient(server, System.Security.Authentication.SslProtocols.Tls12, options);
+            if (connectors?.Length > 0)
+            {
+                _connectors.AddRange(connectors);
+                UpdateApiNamesFromConnectors(connectors);
+            }
+        }
+
+        /// <summary>
+        /// Creates a SynoClient using the provided connection details
+        /// </summary>
+        /// <returns>The configured <see cref="SynoClient"/></returns>
+        public static async Task<SynoClient> Create(SynoConnectionDetails connectionDetails, params StationConnectorBase[] connectors)
+        {
+            return new SynoClient(await connectionDetails.Endpoint, connectionDetails.Options, connectors);
         }
 
         #endregion
